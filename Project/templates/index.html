@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sensing Local</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f8;
+        }
+
+        .container {
+            width: 650px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 30px;
+            box-shadow: 0px 0px 10px gray;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        /* FORM ALIGNMENT */
+        .form-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            width: 150px;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select {
+            flex: 1;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .message {
+            margin-top: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* CARDS */
+        .card {
+            background: white;
+            padding: 10px;
+            margin: 10px 0;
+            box-shadow: 0px 0px 6px gray;
+            border-radius: 8px;
+        }
+
+        .card img {
+            width: 100%;
+            border-radius: 6px;
+        }
+
+        /* POPUP */
+        .popup {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            box-shadow: 0px 0px 10px gray;
+            border-radius: 8px;
+            display: none;
+            width: 280px;
+        }
+
+        .popup-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .btn-yes {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px;
+            width: 48%;
+            border-radius: 5px;
+        }
+
+        .btn-no {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px;
+            width: 48%;
+            border-radius: 5px;
+        }
+
+        .btn-yes:hover {
+            background: #218838;
+        }
+
+        .btn-no:hover {
+            background: #c82333;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h2>📍 Report Local Issue</h2>
+
+    <form method="POST" enctype="multipart/form-data">
+
+        <div class="form-group">
+            <label>Upload Image</label>
+            <input type="file" name="image" required>
+        </div>
+
+        <div class="form-group">
+            <label>Latitude</label>
+            <input type="text" id="lat" name="lat" placeholder="Auto-filled or enter manually" required>
+        </div>
+
+        <div class="form-group">
+            <label>Longitude</label>
+            <input type="text" id="lon" name="lon" placeholder="Auto-filled or enter manually" required>
+        </div>
+
+        <div class="form-group">
+            <label>Issue Type</label>
+            <select name="category">
+                <option value="pothole">Pothole</option>
+                <option value="garbage">Garbage</option>
+                <option value="water">Water Leakage</option>
+            </select>
+        </div>
+
+        <button type="submit">Submit Issue</button>
+
+    </form>
+
+    <div class="message">
+        {{ message }}
+    </div>
+
+    <hr>
+    <h3>📊 Nearby Issue Analysis</h3>
+
+    <!-- HIGH PRIORITY -->
+    {% if high_match %}
+    <h4 style="color:red;">🔴 High Priority Matches</h4>
+    {% for r, s in high_match %}
+    <div class="card">
+        <img src="{{ r['img_path'] }}">
+        <p><b>{{ r['category'] }}</b></p>
+        <p>Similarity: {{ "%.2f"|format(s) }}</p>
+        <p>Lat: {{ r['lat'] }}, Lon: {{ r['lon'] }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- MEDIUM PRIORITY -->
+    {% if medium_match %}
+    <h4 style="color:orange;">🟡 Medium Priority Matches</h4>
+    {% for r, s in medium_match %}
+    <div class="card">
+        <img src="{{ r['img_path'] }}">
+        <p><b>{{ r['category'] }}</b></p>
+        <p>Similarity: {{ "%.2f"|format(s) }}</p>
+        <p>Lat: {{ r['lat'] }}, Lon: {{ r['lon'] }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- LOW PRIORITY -->
+    {% if low_match %}
+    <h4 style="color:blue;">🔵 Low Priority Matches</h4>
+    {% for r, s in low_match %}
+    <div class="card">
+        <img src="{{ r['img_path'] }}">
+        <p><b>{{ r['category'] }}</b></p>
+        <p>Similarity: {{ "%.2f"|format(s) }}</p>
+        <p>Lat: {{ r['lat'] }}, Lon: {{ r['lon'] }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+</div>
+
+<!-- SAFE POPUP FLAG -->
+<input type="hidden" id="popupFlag" value="{{ show_popup }}">
+
+<!-- POPUP -->
+<div id="popup" class="popup">
+    <p>⚠️ Similar or nearby issue found. Submit anyway?</p>
+
+    <div class="popup-buttons">
+        <button class="btn-yes" onclick="confirmSubmit()">Yes</button>
+        <button class="btn-no" onclick="closePopup()">No</button>
+    </div>
+</div>
+
+<script>
+    // Auto location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(pos){
+            document.getElementById("lat").value = pos.coords.latitude;
+            document.getElementById("lon").value = pos.coords.longitude;
+        });
+    }
+
+    // SAFE popup logic
+    const showPopup = document.getElementById("popupFlag").value === "True";
+
+    if(showPopup){
+        document.getElementById("popup").style.display = "block";
+
+        setTimeout(() => {
+            document.getElementById("popup").style.display = "none";
+        }, 30000);
+    }
+
+    function confirmSubmit(){
+        window.location.href = "/confirm";
+    }
+
+    function closePopup(){
+        document.getElementById("popup").style.display = "none";
+    }
+</script>
+
+</body>
+</html>
